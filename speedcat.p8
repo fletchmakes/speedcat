@@ -1167,7 +1167,7 @@ end
 function init_first_room()
     delete_all_objects(nil)
 
-    room_num = 8 -- change this to set the first spawn room
+    room_num = 0 -- change this to set the first spawn room
 
     for o in all(room_states[room_num + 1]) do
         add(objects, o)
