@@ -208,60 +208,81 @@ function new_cat(x, y)
     cat.handle_collisions = function(this, col_list, horiz, newcoord)
         this.on_ground = false
         local can_move = true
+        local closest_col = nil
         for col in all(col_list) do
-            if (col.type == 'block') then
+            -- observe all collisions
+            if (horiz) then
+                local xdist = abs( (this.pos.x + (this.box.w/2)) - (col.pos.x + col.box.x + (col.box.w/2)) )
+
+                if (closest_col == nil) or (closest_col.xdist > xdist) then
+                    closest_col = col
+                    closest_col.xdist = xdist
+                end
+            else -- handle vertical collisions
+                local ydist = abs( (this.pos.y + (this.box.h/2)) - (col.pos.y + col.box.y + (col.box.h/2)) )
+
+                if (closest_col == nil) or (closest_col.ydist > ydist) then
+                    closest_col = col
+                    closest_col.ydist = ydist
+                end
+            end
+        end
+
+        if (closest_col ~= nil) then
+            if (closest_col.type == 'block') then
                 -- collided with a block, so stop this action
                 can_move = false
-                if (horiz and this.pos.x < col.pos.x + col.box.x) then
+                if (horiz and this.pos.x < closest_col.pos.x + closest_col.box.x) then
                     -- we are to the left
-                    if (col.push ~= nil) then
-                        colx = col.push(col, this)
-                        this.pos.x = colx - col.box.x - col.box.w - this.box.x
-                    elseif (col.unlock ~= nil) then
-                        local unlocked = col.unlock(col)
-                        if (unlocked) then can_move = true else set_on_left(this, col) end
-                    elseif (col.box.h > 2) then
-                        set_on_left(this, col)
+                    if (closest_col.push ~= nil) then
+                        colx = closest_col.push(closest_col, this)
+                        this.pos.x = colx - closest_col.box.x - closest_col.box.w - this.box.x
+                    elseif (closest_col.unlock ~= nil) then
+                        local unlocked = closest_col.unlock(closest_col)
+                        if (unlocked) then can_move = true else set_on_left(this, closest_col) end
+                    elseif (closest_col.box.h > 2) then
+                        set_on_left(this, closest_col)
                     else
-                        set_on_top(this, col)
+                        set_on_top(this, closest_col)
                         this.pos.x = newcoord
+                        this.on_ground = true
                     end
                 elseif (horiz) then
                     -- we are to the right
-                    if (col.push ~= nil) then 
-                        colx = col.push(col, this)
-                        this.pos.x = colx + col.box.x + col.box.w + this.box.x
-                    elseif (col.unlock ~= nil) then
-                        local unlocked = col.unlock(col)
-                        if (unlocked) then can_move = true else set_on_right(this, col) end
-                    elseif (col.box.h > 2) then
-                        set_on_right(this, col)
+                    if (closest_col.push ~= nil) then 
+                        colx = closest_col.push(closest_col, this)
+                        this.pos.x = colx + closest_col.box.x + closest_col.box.w + this.box.x
+                    elseif (closest_col.unlock ~= nil) then
+                        local unlocked = closest_col.unlock(closest_col)
+                        if (unlocked) then can_move = true else set_on_right(this, closest_col) end
+                    elseif (closest_col.box.h > 2) then
+                        set_on_right(this, closest_col)
                     else
-                        set_on_top(this, col)
+                        set_on_top(this, closest_col)
                         this.pos.x = newcoord
                     end
-                elseif (not horiz and this.pos.y < col.pos.y + col.box.y) then
+                elseif (not horiz and this.pos.y < closest_col.pos.y + closest_col.box.y) then
                     -- we are to the top
-                    set_on_top(this, col)
+                    set_on_top(this, closest_col)
                     this.on_ground = true
                 elseif (not horiz) then
                     -- we are to the bottom
-                    set_on_bot(this, col)
+                    set_on_bot(this, closest_col)
                 end
-            elseif (col.type == 'spring' and not horiz) then
-                col.press(col)
-                set_on_top(this, col)
+            elseif (closest_col.type == 'spring' and not horiz) then
+                closest_col.press(closest_col)
+                set_on_top(this, closest_col)
                 this.dy = this.saccel
                 this.on_ground = false
                 return 
-            elseif (col.type == 'spike') then
+            elseif (closest_col.type == 'spike') then
                 if (horiz) then this.pos.x = newcoord else this.pos.y = newcoord end
                 deaths = deaths + 1
                 this.dead = true
                 destroy(this)
                 return
-            elseif (col.type == 'coin' or col.type == 'key') then
-                col.pick_up(col)
+            elseif (closest_col.type == 'coin' or closest_col.type == 'key') then
+                closest_col.pick_up(closest_col)
             else
                 -- should not be reached
             end
