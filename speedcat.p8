@@ -156,12 +156,12 @@ function new_cat(x, y)
         local newx = this.pos.x + this.dx
         local newy = this.pos.y + this.dy
 
-        local xcollisions = collide(this, newx+this.box.x, this.pos.y+this.box.y, this.box.w, this.box.h)
-        this.handle_collisions(this, xcollisions, true, newx)
+        local xcol = collide(this, newx+this.box.x, this.pos.y+this.box.y, this.box.w, this.box.h, true)
+        this.handle_collisions(this, xcol, true, newx)
 
         if (not this.dead) then 
-            local ycollisions = collide(this, this.pos.x+this.box.x, newy+this.box.y, this.box.w, this.box.h)
-            this.handle_collisions(this, ycollisions, false, newy) 
+            local ycol = collide(this, this.pos.x+this.box.x, newy+this.box.y, this.box.w, this.box.h, false)
+            this.handle_collisions(this, ycol, false, newy) 
         end
 
         if (abs(this.dx) < this.accel) then
@@ -205,84 +205,65 @@ function new_cat(x, y)
     end
 
     -- helper methods
-    cat.handle_collisions = function(this, col_list, horiz, newcoord)
+    cat.handle_collisions = function(this, col, horiz, newcoord)
         this.on_ground = false
         local can_move = true
-        local closest_col = nil
-        for col in all(col_list) do
-            -- observe all collisions
-            if (horiz) then
-                local xdist = abs( (this.pos.x + (this.box.w/2)) - (col.pos.x + col.box.x + (col.box.w/2)) )
 
-                if (closest_col == nil) or (closest_col.xdist > xdist) then
-                    closest_col = col
-                    closest_col.xdist = xdist
-                end
-            else -- handle vertical collisions
-                local ydist = abs( (this.pos.y + (this.box.h/2)) - (col.pos.y + col.box.y + (col.box.h/2)) )
-
-                if (closest_col == nil) or (closest_col.ydist > ydist) then
-                    closest_col = col
-                    closest_col.ydist = ydist
-                end
-            end
-        end
-
-        if (closest_col ~= nil) then
-            if (closest_col.type == 'block') then
+        if (col ~= nil) then
+            if (col.type == 'block') then
                 -- collided with a block, so stop this action
                 can_move = false
-                if (horiz and this.pos.x < closest_col.pos.x + closest_col.box.x) then
+                if (horiz and this.pos.x < col.pos.x + col.box.x) then
                     -- we are to the left
-                    if (closest_col.push ~= nil) then
-                        colx = closest_col.push(closest_col, this)
-                        this.pos.x = colx - closest_col.box.x - closest_col.box.w - this.box.x
-                    elseif (closest_col.unlock ~= nil) then
-                        local unlocked = closest_col.unlock(closest_col)
-                        if (unlocked) then can_move = true else set_on_left(this, closest_col) end
-                    elseif (closest_col.box.h > 2) then
-                        set_on_left(this, closest_col)
+                    if (col.push ~= nil) then
+                        colx = col.push(col, this)
+                        this.pos.x = colx - col.box.x - col.box.w - this.box.x
+                    elseif (col.unlock ~= nil) then
+                        local unlocked = col.unlock(col)
+                        if (unlocked) then can_move = true else set_on_left(this, col) end
+                    elseif (col.box.h > 2) then
+                        set_on_left(this, col)
                     else
-                        set_on_top(this, closest_col)
+                        set_on_top(this, col)
                         this.pos.x = newcoord
                         this.on_ground = true
                     end
                 elseif (horiz) then
                     -- we are to the right
-                    if (closest_col.push ~= nil) then 
-                        colx = closest_col.push(closest_col, this)
-                        this.pos.x = colx + closest_col.box.x + closest_col.box.w + this.box.x
-                    elseif (closest_col.unlock ~= nil) then
-                        local unlocked = closest_col.unlock(closest_col)
-                        if (unlocked) then can_move = true else set_on_right(this, closest_col) end
-                    elseif (closest_col.box.h > 2) then
-                        set_on_right(this, closest_col)
+                    if (col.push ~= nil) then 
+                        colx = col.push(col, this)
+                        this.pos.x = colx + col.box.x + col.box.w + this.box.x
+                    elseif (col.unlock ~= nil) then
+                        local unlocked = col.unlock(col)
+                        if (unlocked) then can_move = true else set_on_right(this, col) end
+                    elseif (col.box.h > 2) then
+                        set_on_right(this, col)
                     else
-                        set_on_top(this, closest_col)
+                        set_on_top(this, col)
                         this.pos.x = newcoord
                     end
-                elseif (not horiz and this.pos.y < closest_col.pos.y + closest_col.box.y) then
+                elseif (not horiz and this.pos.y < col.pos.y + col.box.y) then
                     -- we are to the top
-                    set_on_top(this, closest_col)
+                    set_on_top(this, col)
                     this.on_ground = true
                 elseif (not horiz) then
                     -- we are to the bottom
-                    set_on_bot(this, closest_col)
+                    set_on_bot(this, col)
                 end
-            elseif (closest_col.type == 'spring' and not horiz) then
-                closest_col.press(closest_col)
-                set_on_top(this, closest_col)
+            elseif (col.type == 'spring' and not horiz) then
+                col.press(col)
+                set_on_top(this, col)
                 this.dy = this.saccel
                 this.on_ground = false
                 return 
-            elseif (closest_col.type == 'spike') then
+            elseif (col.type == 'spike') then
                 if (horiz) then this.pos.x = newcoord else this.pos.y = newcoord end
                 deaths = deaths + 1
                 this.dead = true
                 destroy(this)
                 return
-            elseif (closest_col.type == 'coin' or closest_col.type == 'key') then
-                closest_col.pick_up(closest_col)
+            elseif (col.type == 'coin' or col.type == 'key') then
+                col.pick_up(col)
             else
                 -- should not be reached
             end
@@ -552,9 +533,9 @@ function new_button(x, y)
 
     button.update = function(this)
         -- look for a collision with 'cat' or 'crate' on top of the button
-        local bcollisions = collide(this, this.pos.x + this.box.x, this.pos.y + this.box.y - 1, this.box.w, this.box.h)
+        local ycol = collide(this, this.pos.x + this.box.x, this.pos.y + this.box.y - 1, this.box.w, this.box.h, false)
 
-        this.handle_collisions(this, bcollisions)
+        this.handle_collisions(this, ycol)
 
         if (this.activated and not this.reset) then
             this.spritenum = 6
@@ -571,9 +552,9 @@ function new_button(x, y)
     end
 
     -- helper functions
-    button.handle_collisions = function(this, col_list)
+    button.handle_collisions = function(this, col)
         local has_pressed = false
-        for col in all(col_list) do
+        if (col ~= nil) then
             if (col.type == 'cat' or col.type == 'block') then
                 has_pressed = true
                 set_on_top(col, this)
@@ -600,7 +581,6 @@ function new_switch_block(x, y, start_on)
     block.default_on = start_on
     -- activation
     block.trigger = nil
-    block.num_collisions = 0
 
     block.init = function(this)
         if (this.default_on) then
@@ -618,9 +598,8 @@ function new_switch_block(x, y, start_on)
         local stop_activation = false
         this.collideable = true
         -- look for potential collisions
-        local collisions = collide(this, this.pos.x+this.box.x, this.pos.y+this.box.y, this.box.w, this.box.h)
-        if (#collisions > 0) then stop_activation = true end
-        this.num_collisions = #collisions
+        local col = collide(this, this.pos.x+this.box.x, this.pos.y+this.box.y, this.box.w, this.box.h)
+        if (col ~= nil) then stop_activation = true end
         -- return to original state
         this.collideable = temp_collideable
 
@@ -697,11 +676,11 @@ function new_crate(x, y)
         local newx = this.pos.x + this.dx
         local newy = this.pos.y + this.dy
 
-        local xcollisions = collide(this, newx+this.box.x, this.pos.y+this.box.y, this.box.w, this.box.h)
-        this.handle_collisions(this, xcollisions, true, newx)
+        local xcol = collide(this, newx+this.box.x, this.pos.y+this.box.y, this.box.w, this.box.h, true)
+        this.handle_collisions(this, xcol, true, newx)
 
-        local ycollisions = collide(this, this.pos.x+this.box.x, newy+this.box.y, this.box.w, this.box.h)
-        this.handle_collisions(this, ycollisions, false, newy)
+        local ycol = collide(this, this.pos.x+this.box.x, newy+this.box.y, this.box.w, this.box.h, false)
+        this.handle_collisions(this, ycol, false, newy)
 
         if (abs(this.dx) < 0.1) then
             this.dx = 0
@@ -720,9 +699,9 @@ function new_crate(x, y)
     end
 
     -- helper methods
-    crate.handle_collisions = function(this, col_list, horiz, newcoord)
+    crate.handle_collisions = function(this, col, horiz, newcoord)
         local can_move = true
-        for col in all(col_list) do
+        if (col ~= nil) then
             if (col.type == 'block' or col.type == 'spike') then
                 -- collided with a block, so stop this action
                 can_move = false
@@ -1072,24 +1051,53 @@ function animate(obj)
     end
 end
 
-function collide(ent, x, y, w, h)
-    -- refer to: http://gamedev.docrobs.co.uk/first-steps-in-pico-8-hitting-things
-    -- this will return a list of all collisions with 'ent' in global 'objects'
-    -- the 'ent' MUST resolve all of these collisions
-    local collisions = {}
+-- function collide(ent, x, y, w, h)
+--     -- refer to: http://gamedev.docrobs.co.uk/first-steps-in-pico-8-hitting-things
+--     -- this will return a list of all collisions with 'ent' in global 'objects'
+--     -- the 'ent' MUST resolve all of these collisions
+--     local collisions = {}
+--     for o in all(objects) do
+--         if (ent ~= o and ent.collideable == true and o.collideable == true ) then
+--             local xdist = abs( (x + (w/2)) - (o.pos.x + o.box.x + (o.box.w/2)) )
+--             local xwidths = (w / 2) + (o.box.w / 2)
+--             local ydist = abs( (y + (h/2)) - (o.pos.y + o.box.y + (o.box.h/2)) )
+--             local ywidths = (h / 2) + (o.box.h / 2)
+
+--             if ( (xdist < xwidths) and (ydist < ywidths) ) then
+--                 add(collisions, o)
+--             end
+--         end
+--     end
+--     return collisions
+-- end
+
+function collide(ent, x, y, w, h, horiz)
+    local closest = nil
     for o in all(objects) do
-        if (ent ~= o and ent.collideable == true and o.collideable == true ) then
+        if ( ent ~= o and ent.collideable == true and o.collideable == true ) then
             local xdist = abs( (x + (w/2)) - (o.pos.x + o.box.x + (o.box.w/2)) )
             local xwidths = (w / 2) + (o.box.w / 2)
             local ydist = abs( (y + (h/2)) - (o.pos.y + o.box.y + (o.box.h/2)) )
             local ywidths = (h / 2) + (o.box.h / 2)
 
+            -- if we have a collision
             if ( (xdist < xwidths) and (ydist < ywidths) ) then
-                add(collisions, o)
+                if (horiz) then
+                    if (closest == nil) or (closest.xdist > xdist) then
+                        closest = o
+                        closest.xdist = xdist
+                    end
+                else
+                    if (closest == nil) or (closest.ydist > ydist) then
+                        closest = o
+                        closest.ydist = ydist
+                    end
+                end
             end
         end
     end
-    return collisions
+
+    return closest
 end
 
 function destroy(ent)
