@@ -447,12 +447,23 @@ function new_spike(x, y, num)
     local spike = {}
     -- movement
     spike.pos = { x=x, y=y }
-    spike.box = { x=0, y=0, w=8, h=8 }
+    spike.box = { x=0, y=0, w=8, h=8 } -- default, will change later
     -- animation
     spike.spritenum = num
     -- collisions
     spike.collideable = true
     spike.type = 'spike'
+
+    -- change spike orientation based on spritenum
+    if (num == 33) then -- spike up
+        spike.box = { x=0, y=1, w=8, h=7 }
+    elseif (num == 34) then -- spike down
+        spike.box = { x=0, y=0, w=8, h=7 }
+    elseif (num == 35) then -- spike right
+        spike.box = { x=0, y=0, w=7, h=8 }
+    else -- spike left
+        spike.box = { x=1, y=0, w=7, h=8 }
+    end
 
     spike.update = function(this)
         -- empty
@@ -1230,7 +1241,7 @@ end
 -- misc helpers
 
 function change_background()
-    background_col = (background_col + 1) % 4
+    background_col = (background_col + 1) % 3
 end
 
 function show_stats()
