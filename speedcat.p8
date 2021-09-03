@@ -206,6 +206,7 @@ function new_cat(x, y)
 
     -- helper methods
     cat.handle_collisions = function(this, col_list, horiz, newcoord)
+        this.on_ground = false
         local can_move = true
         for col in all(col_list) do
             if (col.type == 'block') then
@@ -246,7 +247,6 @@ function new_cat(x, y)
                 elseif (not horiz) then
                     -- we are to the bottom
                     set_on_bot(this, col)
-                    this.on_ground = false
                 end
             elseif (col.type == 'spring' and not horiz) then
                 col.press(col)
