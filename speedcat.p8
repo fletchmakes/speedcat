@@ -64,13 +64,17 @@ end
 
 function update_objects()
     for o in all(objects) do
-        o.update(o)
+        if(o.update ~= nil) then
+            o.update(o)
+        end
     end
 end
 
 function draw_objects()
     for o in all(objects) do
-        o.draw(o)
+        if(o.draw ~= nil) then
+            o.draw(o)
+        end
     end
 end
 
@@ -86,7 +90,7 @@ function new_cat(x, y)
     -- physics
     cat.accel = 0.06
     cat.deccel = 0.1
-    cat.jaccel = -2
+    cat.jaccel = -1.8
     cat.saccel = -2.5
     cat.maxhvel = 1
     cat.minhvel = -1
@@ -102,6 +106,8 @@ function new_cat(x, y)
     cat.collideable = true
     cat.type = 'cat'
     cat.on_ground = false
+    cat.can_move = false
+    cat.button = nil
 
     cat.update = function(this)
         -- movement + physics
@@ -133,7 +139,7 @@ function new_cat(x, y)
             end
         end
 
-        if (this.on_ground and btn(k_jump)) then
+        if (this.on_ground and btnp(k_jump)) then
             this.dy = this.dy + this.jaccel
             this.on_ground = false
         else
@@ -156,12 +162,30 @@ function new_cat(x, y)
         local newx = this.pos.x + this.dx
         local newy = this.pos.y + this.dy
 
-        local xcollisions = collide(this, newx+this.box.x, this.pos.y+this.box.y, this.box.w, this.box.h)
-        this.handle_collisions(this, xcollisions, true, newx)
+        this.on_ground = false
+        this.can_move = true
 
-        if (not this.dead) then 
-            local ycollisions = collide(this, this.pos.x+this.box.x, newy+this.box.y, this.box.w, this.box.h)
-            this.handle_collisions(this, ycollisions, false, newy) 
+        local xcol = collide(this, newx+this.box.x, this.pos.y+this.box.y, this.box.w, this.box.h, true)
+        if (xcol ~= nil) then handle_collision(this, xcol, true) end
+        if (this.can_move) then this.pos.x = this.pos.x + this.dx end
+
+        this.can_move = true
+        
+        local ycol = collide(this, this.pos.x+this.box.x, newy+this.box.y, this.box.w, this.box.h, false)
+        if (ycol ~= nil) then handle_collision(this, ycol, false) end
+        if (this.can_move) then this.pos.y = this.pos.y + this.dy end
+
+        -- on button? check
+        if (this.button ~= nil) and (xcol ~= this.button) and (ycol ~= this.button) then
+            this.button.unpress(this.button)
+            this.button = nil
+        end
+
+        -- death check
+        if (this.dead) then
+            deaths = deaths + 1
+            destroy(this)
+            return
         end
 
         if (abs(this.dx) < this.accel) then
@@ -205,70 +229,117 @@ function new_cat(x, y)
     end
 
     -- helper methods
-    cat.handle_collisions = function(this, col_list, horiz, newcoord)
-        this.on_ground = false
-        local can_move = true
-        for col in all(col_list) do
-            if (col.type == 'block') then
-                -- collided with a block, so stop this action
-                can_move = false
-                if (horiz and this.pos.x < col.pos.x + col.box.x) then
+    cat.handle_block = function(this, block, horiz)
+        -- collided with a block, so stop moving
+        this.can_move = false
+        if (horiz) then
+            if (this.pos.x < block.pos.x + block.box.x) then
+                if ( (this.pos.y + this.box.y + this.box.h) - (block.pos.y + block.box.y) < 3 and
+                     (this.pos.y + this.box.y + this.box.h) - (block.pos.y + block.box.y) > 0 and
+                     (this.dy >= 0) ) then
+                    -- just a small step up, go ahead and just move up
+                    this.can_move = true
+                    set_on_top(this, block)
+                else
                     -- we are to the left
-                    if (col.push ~= nil) then
-                        colx = col.push(col, this)
-                        this.pos.x = colx - col.box.x - col.box.w - this.box.x
-                    elseif (col.unlock ~= nil) then
-                        local unlocked = col.unlock(col)
-                        if (unlocked) then can_move = true else set_on_left(this, col) end
-                    elseif (col.box.h > 2) then
-                        set_on_left(this, col)
-                    else
-                        set_on_top(this, col)
-                        this.pos.x = newcoord
-                    end
-                elseif (horiz) then
-                    -- we are to the right
-                    if (col.push ~= nil) then 
-                        colx = col.push(col, this)
-                        this.pos.x = colx + col.box.x + col.box.w + this.box.x
-                    elseif (col.unlock ~= nil) then
-                        local unlocked = col.unlock(col)
-                        if (unlocked) then can_move = true else set_on_right(this, col) end
-                    elseif (col.box.h > 2) then
-                        set_on_right(this, col)
-                    else
-                        set_on_top(this, col)
-                        this.pos.x = newcoord
-                    end
-                elseif (not horiz and this.pos.y < col.pos.y + col.box.y) then
-                    -- we are to the top
-                    set_on_top(this, col)
-                    this.on_ground = true
-                elseif (not horiz) then
-                    -- we are to the bottom
-                    set_on_bot(this, col)
+                    set_on_left(this, block)
                 end
-            elseif (col.type == 'spring' and not horiz) then
-                col.press(col)
-                set_on_top(this, col)
-                this.dy = this.saccel
-                this.on_ground = false
-                return 
-            elseif (col.type == 'spike') then
-                if (horiz) then this.pos.x = newcoord else this.pos.y = newcoord end
-                deaths = deaths + 1
-                this.dead = true
-                destroy(this)
-                return
-            elseif (col.type == 'coin' or col.type == 'key') then
-                col.pick_up(col)
             else
-                -- should not be reached
+                if ( (this.pos.y + this.box.y + this.box.h) - (block.pos.y + block.box.y) < 3 and
+                     (this.pos.y + this.box.y + this.box.h) - (block.pos.y + block.box.y) > 0 and
+                     (this.dy >= 0) ) then
+                    -- just a small step up, go ahead and just move up
+                    this.can_move = true
+                    set_on_top(this, block)
+                else
+                    -- we are to the right
+                    set_on_right(this, block)
+                end
+            end
+        else
+            if (this.pos.y < block.pos.y + block.box.y) then
+                -- we are to the top
+                this.on_ground = true
+                set_on_top(this, block)
+            else
+                -- we are to the bottom
+                set_on_bot(this, block)
             end
         end
+    end
 
-        if (can_move and horiz) then this.pos.x = newcoord
-        elseif (can_move and not horiz) then this.pos.y = newcoord end
+    cat.handle_switch_block = function(this, block, horiz)
+        if (block.collideable) then
+            this.handle_block(this, block, horiz)
+        else
+            this.can_move = true
+        end
+    end
+
+    cat.handle_coin = function(this, coin, horiz)
+        this.can_move = true
+        coin.pick_up(coin)
+    end
+
+    cat.handle_key = function(this, key, horiz)
+        this.can_move = true
+        key.pick_up(key)
+    end
+
+    cat.handle_door = function(this, door, horiz)
+        if (door.unlock(door)) then
+            this.can_move = true
+        else
+            -- since we couldn't unlock the door, just treat it as a solid block
+            this.handle_block(this, door, horiz)
+        end
+    end
+
+    cat.handle_spike = function(this, spike, horiz)
+        this.can_move = true
+        this.dead = true
+    end
+
+    cat.handle_spring = function(this, spring, horiz)
+        this.can_move = true
+        set_on_top(this, spring)
+        if (not horiz) then
+            spring.press(spring)
+            this.dy = this.saccel
+            this.on_ground = false
+        end
+    end
+
+    cat.handle_button = function(this, button, horiz)
+        this.can_move = true
+        this.handle_block(this, button, horiz)
+        this.button = button
+        button.press(button)
+    end
+
+    cat.handle_crate = function(this, crate, horiz)
+        this.can_move = false
+        if (horiz) then
+            if (this.pos.x < crate.pos.x + crate.box.x) then
+                local oldcratex = crate.pos.x
+                local newcratex = crate.push(crate, this)
+                if (oldcratex ~= newcratex) then
+                    this.pos.x = newcratex - crate.box.x - crate.box.w - this.box.x
+                else
+                    this.handle_block(this, crate, horiz)
+                end
+            else
+                local oldcratex = crate.pos.x
+                local newcratex = crate.push(crate, this)
+                if (oldcratex ~= newcratex) then
+                    this.pos.x = newcratex + crate.box.x + crate.box.w + this.box.x
+                else
+                    this.handle_block(this, crate, horiz)
+                end
+            end
+        else
+            this.handle_block(this, crate, horiz)
+        end
     end
 
     return cat
@@ -280,6 +351,7 @@ function new_fake_cat(x, y)
     cat.spritenum = 16
     cat.spritebase = 16
     cat.frames = 2
+    cat.type = 'fake_cat'
     
     cat.update = function(this)
         if (tick) then
@@ -332,7 +404,7 @@ function new_key(x, y)
     local key = {}
     -- movement
     key.pos = { x=x, y=y }
-    key.box = { x=1, y=3, w=6, h=3 }
+    key.box = { x=0, y=0, w=8, h=8 }
     -- animation
     key.spritenum = 51
     key.spritebase = 51
@@ -408,10 +480,6 @@ function new_timed_trigger()
         if (double_double_tick) then this.toggle(this) end
     end
 
-    timer.draw = function(this)
-        -- empty
-    end
-
     timer.toggle = function(this)
         if (this.activated) then this.activated = false else this.activated = true end
     end
@@ -429,14 +497,6 @@ function new_respawn(x, y)
     -- collisions
     respawn.collideable = false
     respawn.type = 'respawn'
-
-    respawn.update = function(this)
-        -- empty
-    end
-
-    respawn.draw = function(this)
-        -- empty
-    end
 
     return respawn
 end
@@ -463,10 +523,6 @@ function new_spike(x, y, num)
         spike.box = { x=0, y=0, w=7, h=8 }
     else -- spike left
         spike.box = { x=1, y=0, w=7, h=8 }
-    end
-
-    spike.update = function(this)
-        -- empty
     end
 
     spike.draw = function(this)
@@ -527,13 +583,13 @@ function new_button(x, y)
     button.reset = false
     -- collisions
     button.collideable = true
-    button.type = 'block'
+    button.type = 'button'
 
     button.update = function(this)
         -- look for a collision with 'cat' or 'crate' on top of the button
-        local bcollisions = collide(this, this.pos.x + this.box.x, this.pos.y + this.box.y - 1, this.box.w, this.box.h)
+        -- local ycol = collide(this, this.pos.x + this.box.x, this.pos.y + this.box.y - 1, this.box.w, this.box.h, false)
 
-        this.handle_collisions(this, bcollisions)
+        -- this.handle_collisions(this, ycol)
 
         if (this.activated and not this.reset) then
             this.spritenum = 6
@@ -549,18 +605,12 @@ function new_button(x, y)
         spr(this.spritenum, this.pos.x, this.pos.y)
     end
 
-    -- helper functions
-    button.handle_collisions = function(this, col_list)
-        local has_pressed = false
-        for col in all(col_list) do
-            if (col.type == 'cat' or col.type == 'block') then
-                has_pressed = true
-                set_on_top(col, this)
-                col.on_ground = true
-            end
-        end
+    button.press = function(this)
+        this.activated = true
+    end
 
-        if (has_pressed) then this.activated = true else this.activated = false end
+    button.unpress = function(this)
+        this.activated = false
     end
 
     return button
@@ -575,11 +625,10 @@ function new_switch_block(x, y, start_on)
     block.spritenum = 49
     -- collisions
     block.collideable = false
-    block.type = 'block'
+    block.type = 'switch_block'
     block.default_on = start_on
     -- activation
     block.trigger = nil
-    block.num_collisions = 0
 
     block.init = function(this)
         if (this.default_on) then
@@ -597,13 +646,12 @@ function new_switch_block(x, y, start_on)
         local stop_activation = false
         this.collideable = true
         -- look for potential collisions
-        local collisions = collide(this, this.pos.x+this.box.x, this.pos.y+this.box.y, this.box.w, this.box.h)
-        if (#collisions > 0) then stop_activation = true end
-        this.num_collisions = #collisions
+        local col = collide(this, this.pos.x+this.box.x, this.pos.y+this.box.y, this.box.w, this.box.h)
+        if (col ~= nil) then stop_activation = true end
         -- return to original state
         this.collideable = temp_collideable
 
-        if (not this.trigger) then
+        if (this.trigger == nil) then
             -- the trigger was deleted, don't try to update as we're about to be deleted as well
             return
         end
@@ -649,12 +697,15 @@ function new_crate(x, y)
     crate.minhvel = -0.5
     crate.maxvvel = 4
     crate.minvvel = -3.5
+    crate.saccel = -2.2
     -- animation
     crate.spritenum = 48
     -- collisions
     crate.collideable = true
-    crate.type = 'block'
+    crate.type = 'crate'
     crate.on_ground = true
+    crate.can_move = false
+    crate.button = nil
 
     crate.update = function(this)
         this.dy = this.dy + grav
@@ -676,11 +727,24 @@ function new_crate(x, y)
         local newx = this.pos.x + this.dx
         local newy = this.pos.y + this.dy
 
-        local xcollisions = collide(this, newx+this.box.x, this.pos.y+this.box.y, this.box.w, this.box.h)
-        this.handle_collisions(this, xcollisions, true, newx)
+        this.on_ground = false
+        this.can_move = true
 
-        local ycollisions = collide(this, this.pos.x+this.box.x, newy+this.box.y, this.box.w, this.box.h)
-        this.handle_collisions(this, ycollisions, false, newy)
+        local xcol = collide(this, newx+this.box.x, this.pos.y+this.box.y, this.box.w, this.box.h, true)
+        if (xcol ~= nil) then handle_collision(this, xcol, true) end
+        if (this.can_move) then this.pos.x = this.pos.x + this.dx end
+
+        this.can_move = true
+        
+        local ycol = collide(this, this.pos.x+this.box.x, newy+this.box.y, this.box.w, this.box.h, false)
+        if (ycol ~= nil) then handle_collision(this, ycol, false) end
+        if (this.can_move) then this.pos.y = this.pos.y + this.dy end
+
+        -- on button? check
+        if (this.button ~= nil) and (xcol ~= this.button) and (ycol ~= this.button) then
+            this.button.unpress(this.button)
+            this.button = nil
+        end
 
         if (abs(this.dx) < 0.1) then
             this.dx = 0
@@ -699,43 +763,86 @@ function new_crate(x, y)
     end
 
     -- helper methods
-    crate.handle_collisions = function(this, col_list, horiz, newcoord)
-        local can_move = true
-        for col in all(col_list) do
-            if (col.type == 'block' or col.type == 'spike') then
-                -- collided with a block, so stop this action
-                can_move = false
-                if (horiz and this.pos.x < col.pos.x + col.box.x) then
+    crate.handle_block = function(this, block, horiz)
+        -- collided with a block, so stop moving
+        this.can_move = false
+        if (horiz) then
+            if (this.pos.x < block.pos.x + block.box.x) then
+                if ( (this.pos.y + this.box.y + this.box.h) - (block.pos.y + block.box.y) < 3 and
+                     (this.pos.y + this.box.y + this.box.h) - (block.pos.y + block.box.y) > 0 ) then
+                    -- just a small step up, go ahead and just move up
+                    this.can_move = true
+                    set_on_top(this, block)
+                else
                     -- we are to the left
-                    if (col.box.h > 2) then
-                        set_on_left(this, col)
-                    else
-                        set_on_top(this, col)
-                        this.pos.x = newcoord
-                    end
-                elseif (horiz) then
-                    -- we are to the right
-                    if (col.box.h > 2) then
-                        set_on_right(this, col)
-                    else
-                        set_on_top(this, col)
-                        this.pos.x = newcoord
-                    end
-                elseif (not horiz and this.pos.y < col.pos.y + col.box.y) then
-                    -- we are to the top
-                    set_on_top(this, col)
-                elseif (not horiz) then
-                    -- we are to the bottom
-                    set_on_bot(this, col)
+                    set_on_left(this, block)
                 end
             else
-                -- should not be reached
-                can_move = false
+                if ( (this.pos.y + this.box.y + this.box.h) - (block.pos.y + block.box.y) < 3 and
+                     (this.pos.y + this.box.y + this.box.h) - (block.pos.y + block.box.y) > 0 ) then
+                    -- just a small step up, go ahead and just move up
+                    this.can_move = true
+                    set_on_top(this, block)
+                else
+                    -- we are to the right
+                    set_on_right(this, block)
+                end
+            end
+        else
+            if (this.pos.y < block.pos.y + block.box.y) then
+                -- we are to the top
+                this.on_ground = true
+                set_on_top(this, block)
+            else
+                -- we are to the bottom
+                set_on_bot(this, block)
             end
         end
+    end
 
-        if (can_move and horiz) then this.pos.x = newcoord
-        elseif (can_move and not horiz) then this.pos.y = newcoord end
+    crate.handle_switch_block = function(this, block, horiz)
+        if (block.collideable) then
+            this.handle_block(this, block, horiz)
+        else
+            this.can_move = true
+        end
+    end
+
+    crate.handle_coin = function(this, coin, horiz)
+        this.handle_block(this, coin, horiz)
+    end
+
+    crate.handle_key = function(this, key, horiz)
+        this.handle_block(this, key, horiz)
+    end
+
+    crate.handle_door = function(this, door, horiz)
+        this.handle_block(this, door, horiz)
+    end
+
+    crate.handle_spike = function(this, spike, horiz)
+        this.handle_block(this, spike, horiz)
+    end
+
+    crate.handle_spring = function(this, spring, horiz)
+        this.can_move = true
+        set_on_top(this, spring)
+        if (not horiz) then
+            spring.press(spring)
+            this.dy = this.saccel
+            this.on_ground = false
+        end
+    end
+
+    crate.handle_button = function(this, button, horiz)
+        this.can_move = true
+        this.handle_block(this, button, horiz)
+        this.button = button
+        button.press(button)
+    end
+
+    crate.handle_cat = function(this, cat, horiz)
+        crate.handle_block(this, cat, horiz)
     end
 
     crate.push = function(this, ent)
@@ -754,11 +861,7 @@ function new_door(x, y, num)
     door.box = { x=0, y=0, w=8, h=8 }
     door.spritenum = num
     door.collideable = true
-    door.type = 'block'
-
-    door.update = function(this)
-        -- empty
-    end
+    door.type = 'door'
 
     door.draw = function(this)
         spr(this.spritenum, this.pos.x, this.pos.y)
@@ -786,10 +889,6 @@ function new_block(x, y, num)
     -- collisions
     block.collideable = true
     block.type = 'block'
-
-    block.update = function(this)
-        -- empty
-    end
 
     block.draw = function(this)
         spr(this.spritenum, this.pos.x, this.pos.y)
@@ -1051,24 +1150,41 @@ function animate(obj)
     end
 end
 
-function collide(ent, x, y, w, h)
+function collide(ent, x, y, w, h, horiz)
     -- refer to: http://gamedev.docrobs.co.uk/first-steps-in-pico-8-hitting-things
-    -- this will return a list of all collisions with 'ent' in global 'objects'
-    -- the 'ent' MUST resolve all of these collisions
-    local collisions = {}
+    -- this will return the closest collision in the indicated direction with 'ent' in global 'objects'
+    -- the 'ent' MUST resolve this collision
+    local closest = nil
     for o in all(objects) do
-        if (ent ~= o and ent.collideable == true and o.collideable == true ) then
+        if ( ent ~= o and ent.collideable == true and o.collideable == true ) then
             local xdist = abs( (x + (w/2)) - (o.pos.x + o.box.x + (o.box.w/2)) )
             local xwidths = (w / 2) + (o.box.w / 2)
             local ydist = abs( (y + (h/2)) - (o.pos.y + o.box.y + (o.box.h/2)) )
             local ywidths = (h / 2) + (o.box.h / 2)
 
+            -- if we have a collision
             if ( (xdist < xwidths) and (ydist < ywidths) ) then
-                add(collisions, o)
+                if (horiz) then
+                    if (closest == nil) or (closest.xdist > xdist) then
+                        closest = o
+                        closest.xdist = xdist
+                    end
+                else
+                    if (closest == nil) or (closest.ydist > ydist) then
+                        closest = o
+                        closest.ydist = ydist
+                    end
+                end
             end
         end
     end
-    return collisions
+
+    return closest
+end
+
+function handle_collision(obj1, obj2, horiz)
+    -- call obj1's callback handler for obj2's type
+    obj1["handle_"..obj2.type](obj1, obj2, horiz)
 end
 
 function destroy(ent)
@@ -1315,7 +1431,7 @@ function play_music()
     if (half_tick) then
         -- each half-tick is 1/16th note
         sfx(0, 0, (sfx_frame % 32), 1)
-        sfx(1, 1, (sfx_frame % 32), 1)
+        -- sfx(1, 1, (sfx_frame % 32), 1)
         sfx_frame = sfx_frame + 1
     end
 end
@@ -1450,8 +1566,8 @@ __map__
 6400000000000000000000000000006464000000000000000000000000000000000060440000000000000000000000646400000000000000000000000000006464000000000000000000000000000064640000000000000000000000000000646400000000000000000000000000006464000000000000000000000000000064
 6400000000000000000000000000006464000000000000000000000000000100000030200000530000000000000000646400000000000000000000000000006464000000000000000000000000000064640000000000000000000000000000646400000000000000000000000000006464000000000000000000000000000064
 6400000000000000000000000000006464000000000000000000000000004341415454415454620000434400000033646400000000000000000000000000006464000000000000000000000000000064640000000000000000000000000000646400000000000000000000000000006464000000000000000000000000000064
-6400000000000000000000000000006062000000000000000000003100000064640000640000000000000000000047646400000000000000000000000000006464000000000000000000000000000064640000000000000000000000000000646400000000000000000000000000006464000000000000000000000000000064
-6400000000010000000000530000000000000000000000003200000000000064640000570000000000000000006557646400000000000000000000000000006464000000000000000000000000000064640000000000000000000000000000646400000000000000000000000000006464000000000000000000000000000064
+6400000000000000000000000000006062000000000000000000003200000064640000640000000000000000000047646400000000000000000000000000006464000000000000000000000000000064640000000000000000000000000000646400000000000000000000000000006464000000000000000000000000000064
+6400000000010000000000530000000000000000000000003100000000000064640000570000000000000000006557646400000000000000000000000000006464000000000000000000000000000064640000000000000000000000000000646400000000000000000000000000006464000000000000000000000000000064
 6420000000530000000007640000000000200000005321212121212121212164640000350053000000000000665467646400000000000000000000000000006464000000000000000000000000000064640000000000000000000000000000646400000000000000000000000000006464000000000000000000000000000064
 6054545454615454545454615454545454545454546154545454545454545462640040545461545454545454545454626054545454545454545454545454546260545454545454545454545454545462605454545454545454545454545454626054545454545454545454545454546260545454545454545454545454545462
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -1463,13 +1579,13 @@ __map__
 6400320032000000000000000000006062000000000000000000000000000064642000000000000000000000000024646400000000000000000000000000006464000000000000000000000000000064640000000000000000000000000000646400000000000000000000000000006464000000000000000000000000000064
 6400000000000000000000000000002000000000000000000000000066545452004142000053000053000053000024646400000000000000000000000000006464000000000000000000000000000064640000000000000000000000000000646400000000000000000000000000006464000000000000000000000000000064
 6401000000000000000000000000004041440000010000000000000032000064484852212164212164212164000024646400000000000000000000000000006464000000000000000000000000000064640000000000000000000000000000646400000000000000000000000000006464000000000000000000000000000064
-5042000000000000000000000007006464000065656500000000000032003364484800545461545461545456000024556100000000000000000000000000006464000000000000000000000000000064640000000000000000000000000000646400000000000000000000000000006464000000000000000000000000000064
-5052212121214042000051000065006464000000000000003232000043545452484852000000000000000000000000000000000000000000000000000000006464000000000000000000000000000064640000000000000000000000000000646400000000000000000000000000006464000000000000000000000000000064
-5061545454546156000000000000076464000000000000310000000000000060616152000000000000000000435454414100000000000000000000000000006464000000000000000000000000000064640000000000000000000000000000646400000000000000000000000000006464000000000000000000000000000064
-6400002200000022000000000040545264000000323232000000000000000020000063000000000000005100320000646400000000000000000000000000006464000000000000000000000000000064640000000000000000000000000000646400000000000000000000000000006464000000000000000000000000000064
-6405000000000000000053000057006464003131000000000000000000004041420030000000000051000000320000646400000000000000000000000000006464000000000000000000000000000064640000000000000000000000000000646400000000000000000000000000006464000000000000000000000000000064
-5041414142004041414152070034006464070000000000000000000000400052640545414146000000000000320001646400000000000000000000000000006464000000000000000000000000000064640000000000000000000000000000646400000000000000000000000000006464000000000000000000000000000064
+5042000000000000000043440000006464000000656500000000000032003364484800545461545461545456000024556100000000000000000000000000006464000000000000000000000000000064640000000000000000000000000000646400000000000000000000000000006464000000000000000000000000000064
+5052212121214042000000000007006464000000000000000032320043545452484852000000000000000000000000000000000000000000000000000000006464000000000000000000000000000064640000000000000000000000000000646400000000000000000000000000006464000000000000000000000000000064
+5061545454546156000000004341415264000000000000313100000000000060616152000000000000000000435454414100000000000000000000000000006464000000000000000000000000000064640000000000000000000000000000646400000000000000000000000000006464000000000000000000000000000064
+6400002200000022000000000050615264000000003232000000000000000020000063000000000000005100320000646400000000000000000000000000006464000000000000000000000000000064640000000000000000000000000000646400000000000000000000000000006464000000000000000000000000000064
+6405000000000000000007000057006464000031310000000000000000004041420030000000000051000000320000646400000000000000000000000000006464000000000000000000000000000064640000000000000000000000000000646400000000000000000000000000006464000000000000000000000000000064
+5041414142004041414146000034006464070000000000000000000000400052640545414146000000000000320001646400000000000000000000000000006464000000000000000000000000000064640000000000000000000000000000646400000000000000000000000000006464000000000000000000000000000064
 6061616156215561616161545467006460545454545454545454545454616162605461616161545454545454545454626054545454545454545454545454546260545454545454545454545454545462605454545454545454545454545454626054545454545454545454545454546260545454545454545454545454545462
 __sfx__
-011000000c100002001b60000000103001b600000001b6000c100000001b60000000103001b600000001b6000c100000001b60000000103001b600000001b6000c100000001b60000000103001b600000001b600
+011000000c073344003b4003e4000b6532c4002c4002d4000c073344003b4003e4000b6532c4002c4002d4000c073344003b4003e4000b6532c4002c4002d4000c073344003b4003e4000b6532c4002c4002d400
 011000001b0001b0001b0001d0001d0001f0002200022000220001d0001b0001600016000160001d0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
