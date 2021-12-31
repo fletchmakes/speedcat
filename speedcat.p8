@@ -57,7 +57,7 @@ end
 function _draw()
     cls(background_col)
     draw_objects()
-    if (not muted) then play_music() end 
+    -- if (not muted) then play_music() end 
     if (game_started) then 
         show_stats() 
     end
@@ -144,6 +144,8 @@ function new_cat(x, y)
         if (this.on_ground and btnp(k_jump)) then
             this.dy = this.dy + this.jaccel
             this.on_ground = false
+            -- play jump sound
+            play_sfx(8)
         else
             this.dy = this.dy + grav
         end
@@ -419,6 +421,8 @@ function new_coin(x, y)
 
     coin.pick_up = function(this)
         num_coins = num_coins + 1
+        -- play pickup sound
+        play_sfx(10)
         del(objects, this)
     end
 
@@ -452,6 +456,8 @@ function new_key(x, y)
 
     key.pick_up = function(this)
         num_keys = num_keys + 1
+        -- play pickup sound
+        play_sfx(10)
         del(objects, this)
     end    
 
@@ -502,7 +508,11 @@ function new_timed_trigger()
     timer.type = 'timer'
 
     timer.update = function(this)
-        if (double_double_tick) then this.toggle(this) end
+        if (double_double_tick) then 
+            this.toggle(this) 
+            -- play activated sound
+            play_sfx(9)
+        end
     end
 
     timer.toggle = function(this)
@@ -562,6 +572,8 @@ function new_teleporter(x, y)
 
     teleporter.use = function(this)
         if (this.active) then
+            -- play teleporter sound
+            play_sfx(13)
             this.active = false
             this.frame = this.wait_frames
             this.connected_to.use(this.connected_to)
@@ -640,7 +652,11 @@ function new_spring(x, y)
     end
 
     spring.press = function(this)
-        this.pressed = true
+        if (not this.pressed) then
+            -- play spring sound
+            play_sfx(11)
+            this.pressed = true
+        end
     end
 
     return spring
@@ -675,11 +691,19 @@ function new_button(x, y)
     end
 
     button.press = function(this)
-        this.activated = true
+        if (not this.activated) then
+            -- play activated sound
+            play_sfx(9)
+            this.activated = true
+        end
     end
 
     button.unpress = function(this)
-        this.activated = false
+        if (this.activated) then
+            -- play activated sound
+            play_sfx(9)
+            this.activated = false
+        end
     end
 
     return button
@@ -710,11 +734,19 @@ function new_lever(x, y)
     end
 
     lever.press = function(this)
-        this.activated = true
+        if (not this.activated) then
+            -- play activated sound
+            play_sfx(9)
+            this.activated = true
+        end
     end
 
     lever.unpress = function(this)
-        this.activated = false
+        if (this.activated) then
+            -- play activated sound
+            play_sfx(9)
+            this.activated = false
+        end
     end
 
     return lever
@@ -999,6 +1031,8 @@ function new_door(x, y, num)
     door.unlock = function(this)
         if (num_keys > 0) then 
             num_keys = num_keys - 1
+            -- play activated sound
+            play_sfx(9)
             del(objects, this)
             return true
         end
@@ -1087,16 +1121,22 @@ function init_main_menu()
 
         -- determine selection & highlight
         if ( (this.updating == false) and btn(k_up) and this.sel_num > 1) then
+            -- play move cursor sound
+            play_sfx(14)
             this.sel_num = this.sel_num - 1
             this.set_updating(this)
         end
 
         if ( (this.updating == false) and btn(k_down) and this.sel_num < #this.opts) then
+            -- play move cursor sound
+            play_sfx(14)
             this.sel_num = this.sel_num + 1
             this.set_updating(this)
         end
 
         if ( (this.ignore_input == false) and (this.updating == false) and btnp(k_confirm) ) then
+            -- play activated sound
+            play_sfx(9)
             this.selection.action(this.selection)
             this.set_updating(this)
         end
@@ -1175,6 +1215,8 @@ function init_tutorial()
         end
 
         if ( (this.ignore_input == false) and (btn(k_confirm)) ) then
+            -- play activated sound
+            play_sfx(9)
             opt.action(opt)
         end
 
@@ -1393,12 +1435,16 @@ function handle_collision(obj1, obj2, horiz)
 end
 
 function destroy(ent)
+    -- play destroy noise
+    play_sfx(12)
     local explosion = new_explosion(ent.pos.x, ent.pos.y, false)
     add(objects, explosion)
     del(objects, ent)
 end
 
 function respawn()
+    -- play respawn noise
+    play_sfx(15)
     local explosion = new_explosion(room_respawn.x, room_respawn.y, true)
     add(objects, explosion)
 end
@@ -1645,11 +1691,19 @@ function print_title(x, y)
 end
 
 function play_music()
+    -- TODO: going to have to revisit this system
     if (half_tick) then
         -- each half-tick is 1/16th note
         sfx(0, 0, (sfx_frame % 32), 1)
         -- sfx(1, 1, (sfx_frame % 32), 1)
         sfx_frame = sfx_frame + 1
+    end
+end
+
+function play_sfx(sfxn)
+    if (not muted) then
+        -- play sfx number sfxn, choose an available channel, start at note 0
+        sfx(sfxn, -1, 0)
     end
 end
 
@@ -1936,3 +1990,17 @@ __map__
 __sfx__
 011000000c073344003b4003e4000b6532c4002c4002d4000c073344003b4003e4000b6532c4002c4002d4000c073344003b4003e4000b6532c4002c4002d4000c073344003b4003e4000b6532c4002c4002d400
 011000001b0001b0001b0001d0001d0001f0002200022000220001d0001b0001600016000160001d0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+040100001232313323143231432315323163231632317323173231732318323193131b3131d3131e3132031323313243132431300303003030030300303003030030300303003030030300303003030030300303
+00020000206401b6400d64003640136400b6400464000640000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000200002833028330283302833028330283303933039330393303933039330393303930039300393003930000300003000030000300003000030000300003000030000300003000030000300003000030000300
+04010000045400554006540095400b5400e54010540115401254012540135401254011540105400f5400e5400d5400d5400d5400d5400f54011540145401a5401c54008500085002350000500005000050000500
+0002000034630336303263031630306302d6202a6202561023610206201e6201c6301b6201a6201862015610146101462014620146201361012610106200d6100000000000000000000000000000000000000000
+08010000330323303233032330323303233032300222e0222e0222b0222702224012220121f0121b05218052130520f0520705200002000020000200002000020000200002000020000200002000020000200002
+000100001803018030180301803018030180301802018020180201802018020180200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000600000e0300e0300e0301303013040130401705017050170501705017055000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
