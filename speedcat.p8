@@ -402,21 +402,27 @@ function new_coin(x, y)
     coin.spritenum = 1
     coin.spritebase = 1
     coin.frames = 4
+    coin.bounce = false
     -- collisions
     coin.collideable = true
     coin.type = 'coin'
 
     coin.update = function(this)
         if tick then animate(this) end
-        if (tick and double_tick) then
-            this.pos.y = this.pos.y - 1
-        elseif (tick) then
-            this.pos.y = this.pos.y + 1
+
+        if (tick) then
+            this.bounce = (not this.bounce)
         end
     end
 
     coin.draw = function(this)
-        spr(this.spritenum, this.pos.x, this.pos.y)
+        local delta = 0
+
+        if (this.bounce) then
+            delta = -1
+        end
+
+        spr(this.spritenum, this.pos.x, this.pos.y + delta)
     end
 
     coin.pick_up = function(this)
@@ -438,21 +444,27 @@ function new_key(x, y)
     key.spritenum = 51
     key.spritebase = 51
     key.frames = 1
+    key.bounce = false
     -- collisions
     key.collideable = true
     key.type = 'key'
 
     key.update = function(this)
-        if (tick and double_tick) then
-            this.pos.y = this.pos.y + 1
-        elseif (tick) then
-            this.pos.y = this.pos.y - 1
+        if (tick) then
+            this.bounce = (not this.bounce)
         end
     end
 
     key.draw = function(this)
-        spr(this.spritenum, this.pos.x, this.pos.y)
+        local delta = 0
+
+        if (key.bounce) then
+            delta = -1
+        end
+
+        spr(this.spritenum, this.pos.x, this.pos.y + delta)
     end
+
 
     key.pick_up = function(this)
         num_keys = num_keys + 1
