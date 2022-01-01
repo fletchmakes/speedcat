@@ -1,6 +1,6 @@
 # SPEEDCAT - a game by fletch
 
-![](showcase.gif)
+![](./assets/social/showcase.gif)
 
 ## Introduction
 SPEEDCAT is a game about a cat that needs to go _fast_. Race against the clock to collect all 32 rainbow coins, while also keeping your death count low! Share your shortest time or least number of deaths with your friends, and try to become the world's best SPEEDCAT!
