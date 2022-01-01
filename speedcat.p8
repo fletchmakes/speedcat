@@ -21,6 +21,7 @@ background_col = 1
 foreground_col = 7
 deaths = 0
 time_start = 0
+final_time = -1
 num_keys = 0
 num_coins = 0
 sfx_frame = 0
@@ -36,7 +37,7 @@ k_confirm = 4
 anim_frame = 16
 empty_cell = 0
 room_bounds = { x=0, y=0, w=128, h=96}
-total_coins = 32
+total_coins = 1
 
 -->8
 -- lifecycle
@@ -52,6 +53,20 @@ function _update60()
     if (frame % (anim_frame * 2) == 0) then double_tick = true else double_tick = false end
     if (frame % (anim_frame * 4) == 0) then double_double_tick = true else double_double_tick = false end
     update_objects()
+
+    -- check for win condition
+    if (num_coins >= total_coins) then
+        if (game_started) then
+            delete_all_objects(nil)
+
+            final_time = time() - time_start
+            local final_deaths = deaths
+            local win_menu = init_game_complete(final_time, final_deaths)
+
+            add(objects, win_menu)
+            game_started = false
+        end
+    end
 end
 
 function _draw()
@@ -59,7 +74,7 @@ function _draw()
     draw_objects()
     -- if (not muted) then play_music() end 
     if (game_started) then 
-        show_stats() 
+        show_stats()
     end
 end
 
@@ -1078,7 +1093,7 @@ function new_block(x, y, num)
 end
 
 -->8
--- main menu
+-- menus
 
 -- basic menu idea inspired by PixelCod: https://www.lexaloffle.com/bbs/?tid=27725
 function init_main_menu()
@@ -1268,6 +1283,156 @@ function init_tutorial()
     return tutorial
 end
 
+function init_game_complete(t, d)
+    local win_menu = {}
+     -- position
+    win_menu.basex = 74
+    win_menu.basey = 110
+    -- option objects
+    win_menu.opts = {}
+    -- ignore input for x frames
+    win_menu.ignore_frames = 10
+    win_menu.ignore_input = true
+    -- values to remember
+    win_menu.time = t
+    win_menu.deaths = d
+    -- fireworks
+    win_menu.particles = {}
+
+    win_menu.init = function (this)
+        this.ignore_frames = 10
+        this.ignore_input = true
+
+        -- create a back button
+        local new_opt = new_menu_option("main menu", this.basex, this.basey, 1)
+        add(this.opts, new_opt)
+    end
+
+    win_menu.update = function(this)
+        local opt = this.opts[1]
+        opt.selected = true
+
+        if (this.ignore_frames > 0) then
+            this.ignore_frames = this.ignore_frames - 1
+        else
+            this.ignore_input = false
+        end
+
+        if ( (this.ignore_input == false) and (btn(k_confirm)) ) then
+            -- play activated sound
+            play_sfx(9)
+            opt.action(opt)
+        end
+
+        opt.update(opt)
+
+        -- fireworks
+        this.update_particles(this)
+
+        if (tick and double_double_tick) then
+            this.boom(this, rnd(128), rnd(128))
+        end
+    end
+
+    win_menu.draw = function(this)
+        -- draw fireworks first so that they are behind everything else
+        this.draw_particles(this)
+
+        -- title
+        print_title(48, 22)
+        rect(45, 19, 81, 29, foreground_col)
+
+        -- win_menu text
+        print("congratulations!", 24, 41, foreground_col)
+        
+        -- final stats
+        rect(21, 53, 104, 70, foreground_col)
+        print(get_time_str(this.time), 24, 56, foreground_col)
+        print("deaths: "..this.deaths, 24, 63, foreground_col)
+
+        -- share instructions
+        print("press f6 to take a", 24, 78, foreground_col)
+        print("screenshot to share!", 24, 84, foreground_col)
+
+        -- back button
+        local opt = this.opts[1]
+        opt.draw(opt)
+    end
+
+    ------------------------
+    -- particles code from: https://www.lexaloffle.com/bbs/?pid=33755
+    ------------------------
+
+    win_menu.boom = function(this, _x,_y)
+        -- create 100 particles at a location
+        for i=0,100 do
+            this.spawn_particle(this, _x,_y)
+        end
+    end
+       
+    win_menu.spawn_particle = function(this, _x,_y)
+        -- create a new particle
+        local new={}
+        
+        -- generate a random angle
+        -- and speed
+        local angle = rnd()
+        local speed = 1+rnd(2)
+        
+        new.x=_x --set start position
+        new.y=_y --set start position
+        -- set velocity based on
+        -- speed and angle
+        new.dx=sin(angle)*speed
+        new.dy=cos(angle)*speed
+        
+        --add a random starting age
+        --to add more variety
+        new.age=flr(rnd(25))
+        
+        --add the particle to the list
+        add(this.particles,new)
+    end
+       
+    win_menu.update_particles = function(this)
+        --iterate trough all particles
+        for p in all(this.particles) do
+            --delete old particles
+            --or if particle left 
+            --the screen 
+            if p.age > 80 
+                or p.y > 128
+                or p.y < 0
+                or p.x > 128
+                or p.x < 0
+            then
+                del(this.particles,p)
+            else
+                --move particle
+                p.x+=p.dx
+                p.y+=p.dy
+                
+                --age particle
+                p.age+=1
+                
+                --add gravity
+                p.dy+=0.15
+            end
+        end
+    end
+       
+    win_menu.draw_particles = function(this) 
+        --iterate trough all particles
+        for p in all(this.particles) do
+            pset(p.x,p.y,flr(rnd(3))+8)
+        end
+    end
+
+    win_menu.init(win_menu)
+
+    return win_menu
+end
+
 function new_menu_option(str, basex, basey, opt_num)
     local opt = {}
     -- position
@@ -1333,6 +1498,11 @@ function new_menu_option(str, basex, basey, opt_num)
             delete_all_objects()
             local menu = init_main_menu()
             add(objects, menu)
+        end
+
+        if (this.message == "main menu") then
+            -- restarts the cartridge; clears memory
+            run()
         end
     end
 
@@ -1638,11 +1808,7 @@ end
 function show_stats()
     -- generate the stats    
     local time_passed = time() - time_start
-    local minutes = left_pad(tostr(flr(time_passed / 60)), 2)
-    local seconds = left_pad(tostr(flr(time_passed % 60)), 2)
-    local fractional = right_pad(sub(tostr(time_passed - flr(time_passed)), 3, 4), 2)
-
-    local time_str = "time: " .. minutes .. ":" .. seconds .. "." .. fractional
+    local time_str = get_time_str(time_passed)
     local room_str = "room: " .. (room_num + 1)
 
     local coin_str = "coins: " .. num_coins .. "/" .. total_coins
@@ -1659,6 +1825,14 @@ function show_stats()
     print(key_str, 68, 109, foreground_col)
     spr(51, 90, 108)
     print(death_str, 68, 117, foreground_col)
+end
+
+function get_time_str(elapsed_time)
+    local minutes = left_pad(tostr(flr(elapsed_time / 60)), 2)
+    local seconds = left_pad(tostr(flr(elapsed_time % 60)), 2)
+    local fractional = right_pad(sub(tostr(elapsed_time - flr(elapsed_time)), 3, 4), 2)
+
+    return "time: " .. minutes .. ":" .. seconds .. "." .. fractional
 end
 
 function left_pad(str, pnum)
@@ -1685,6 +1859,9 @@ function start_game()
     game_started = true
     time_start = time()
     frame = 0
+    deaths = 0
+    num_keys = 0
+    num_coins = 0
     respawn()
 end
 
