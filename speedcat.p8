@@ -32,6 +32,7 @@ grav = 0.15
 k_left = 0
 k_right = 1
 k_jump = 2
+k_jump_alt = 4
 k_up = 2
 k_down = 3
 k_confirm = 4
@@ -157,7 +158,7 @@ function new_cat(x, y)
             end
         end
 
-        if (this.on_ground and btnp(k_jump)) then
+        if (this.on_ground and (btnp(k_jump) or btnp(k_jump_alt))) then
             this.dy = this.dy + this.jaccel
             this.on_ground = false
             -- play jump sound
