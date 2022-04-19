@@ -1,5 +1,5 @@
 # SPEEDCAT
-A game all about collecting coins and being faster than your friends!
+A game all about collecting coins and being faster than your friends! Play now on itch.io: https://fletchmakesstuff.itch.io/speedcat
 
 ![](./assets/social/showcase.gif)
 
@@ -62,4 +62,5 @@ I've taken my time on this game. Whenever I felt like my heart was in it, I'd pu
   * Salayna (Sachi)
   * SpicyCheeseBite
   * Spak
+* Thanks to jacobpierce for their [reproduction of the PICO-8 font](https://github.com/jacobpierce/pico-8-font) for use in the trailer and other promotional graphics
 * Huge shoutout to my wife for all of her support and encouragement throughout the entire development process. Her words of excitment and encouragement helped me through many speedbumps!
