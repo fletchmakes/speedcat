@@ -241,10 +241,10 @@ function new_cat(x, y)
             this.pos.x = this.pos.x - this.dx
         elseif (this.pos.y + this.box.y + this.box.h - 1 < room_bounds.y) then
             update_room_up()
-            this.pos.y = room_bounds.y + room_bounds.h - this.box.h
+            this.pos.y = room_bounds.y + room_bounds.h - this.box.h - this.box.y
             this.pos.x = this.pos.x - this.dx
             -- give the player a chance to react to the new room
-            this.dy = this.saccel
+            this.dy = -2.0
         end
 
         if (tick) then
@@ -264,7 +264,7 @@ function new_cat(x, y)
             if (this.pos.x < block.pos.x + block.box.x) then
                 if ( (this.pos.y + this.box.y + this.box.h) - (block.pos.y + block.box.y) < 3 and
                      (this.pos.y + this.box.y + this.box.h) - (block.pos.y + block.box.y) > 0 and
-                     (this.dy >= 0) ) then
+                     (this.dy > 0) and (block.type ~= "platform")) then
                     -- just a small step up, go ahead and just move up
                     this.can_move = true
                     set_on_top(this, block)
@@ -275,7 +275,7 @@ function new_cat(x, y)
             else
                 if ( (this.pos.y + this.box.y + this.box.h) - (block.pos.y + block.box.y) < 3 and
                      (this.pos.y + this.box.y + this.box.h) - (block.pos.y + block.box.y) > 0 and
-                     (this.dy >= 0) ) then
+                     (this.dy > 0) and (block.type ~= "platform")) then
                     -- just a small step up, go ahead and just move up
                     this.can_move = true
                     set_on_top(this, block)
@@ -295,7 +295,6 @@ function new_cat(x, y)
                 end
             else
                 -- we are to the bottom
-                this.can_move = true
                 set_on_bot(this, block)
             end
         end
@@ -1650,6 +1649,8 @@ function collide(ent, x, y, w, h, horiz)
                 result = obj
                 break
             end
+        elseif (obj.type == 'platform' and #closest > 1) then
+            -- do nothing, go to the next collision
         else
             result = obj
             break
@@ -1730,6 +1731,8 @@ function set_on_bot(ent1, ent2)
         ent1.pos.y = ent2.pos.y + ent1.box.h
         ent1.dy = 0
         ent1.can_move = false
+    else
+        ent1.can_move = true
     end
 end
 
@@ -2063,7 +2066,7 @@ __gfx__
 46000000000000000000000000420525460000000000000000000000000000464600000000000000000000000000004646000000003445454545440000000046
 46000000000000000000000000000006260000000000000000000023000000000000000000000000000000000000000000027046000000000000044545454525
 46700000000000003444000002420525460000000000000000000000000000464610000000000000000000000000624605440000000000000000000000000046
-46000000000000000000000000000000000000000000000000000023000000042400000000000000000000000000000414454525000034454545260000000046
+46000000000000000000000000000000000000000000000000000023000000042400000000000000000000000000000414454525900034454545260000000046
 05761300000034440000000034451625461000000000000000000000000000062600000013000000131313000000004646100000350000000000000000000046
 46001000000000000000000033000002020000000000000000044545454545254670000000000000000000000002704646100046000000000000000000000046
 46121212121200000000000000006306164576000000000000000000000000000000000000000000000000000004451616454545164544000090000000000046
