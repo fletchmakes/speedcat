@@ -286,12 +286,17 @@ function new_cat(x, y)
             end
         else
             if (this.pos.y < block.pos.y + block.box.y) then
-                if (this.dy > 0) then
+                if (block.type ~= "platform") then
                     -- we are to the top
                     this.on_ground = true
                     set_on_top(this, block)
                 else
-                    this.can_move = true
+                    if (this.pos.y + this.box.y + this.box.h - this.dy < block.pos.y + block.box.y and this.dy > 0) then
+                        this.on_ground = true
+                        set_on_top(this, block)
+                    else
+                        this.can_move = true
+                    end
                 end
             else
                 -- we are to the bottom
@@ -1592,7 +1597,9 @@ function collide(ent, x, y, w, h, horiz)
             -- if we have a collision, add it to the sorted list closest
             if ( collide_one(ent, x, y, w, h, o) ) then
                 if (horiz) then
-                    if (#closest == 0) then
+                    if (ent.type == "platform") then
+                        -- do nothing so we skip
+                    elseif (#closest == 0) then
                         add(closest, o)
                         add(dists, xdist)
                     else
