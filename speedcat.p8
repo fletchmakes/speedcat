@@ -114,6 +114,8 @@ function new_cat(x, y)
     cat.minhvel = -1
     cat.maxvvel = 6
     cat.minvvel = -6
+    cat.coyote_max = 8
+    cat.coyote_frames = cat.coyote_max
     -- animation
     cat.flip = false
     cat.spritenum = 16
@@ -129,6 +131,9 @@ function new_cat(x, y)
     cat.lever = nil
 
     cat.update = function(this)
+        -- start decrementing coyote frames
+        this.coyote_frames = this.coyote_frames - 1
+
         -- movement + physics
         if (btn(k_left)) and (this.dx > 0) then
             -- if we are travelling right at the time, slow down faster
@@ -158,10 +163,11 @@ function new_cat(x, y)
             end
         end
 
-        if ((this.on_ground) and (btnp(k_jump) or btnp(k_jump_alt))) then
+        if ((this.on_ground or this.coyote_frames > 0) and (btnp(k_jump) or btnp(k_jump_alt))) then
             this.dy = 0
             this.dy = this.dy + this.jaccel
             this.on_ground = false
+            this.coyote_frames = 0
             -- play jump sound
             play_sfx(8)
         else
@@ -290,10 +296,12 @@ function new_cat(x, y)
                     -- we are to the top
                     this.on_ground = true
                     set_on_top(this, block)
+                    this.coyote_frames = this.coyote_max
                 else
                     if (this.pos.y + this.box.y + this.box.h - this.dy < block.pos.y + block.box.y and this.dy > 0) then
                         this.on_ground = true
                         set_on_top(this, block)
+                        this.coyote_frames = this.coyote_max
                     else
                         this.can_move = true
                     end
@@ -348,6 +356,7 @@ function new_cat(x, y)
             spring.press(spring)
             this.dy = this.saccel
             this.on_ground = false
+            this.coyote_frames = 0
         end
     end
 
